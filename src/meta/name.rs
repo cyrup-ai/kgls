@@ -3,7 +3,6 @@ use crate::flags::HyperlinkOption;
 use crate::icon::Icons;
 use crate::meta::filetype::FileType;
 use crate::meta::GitFileStatus;
-use crate::print_error;
 use url::Url;
 use std::cmp::{Ordering, PartialOrd};
 use std::ffi::OsStr;
@@ -135,7 +134,7 @@ impl Name {
                                 format!("\x1B]8;;{url}\x1B\x5C{name}\x1B]8;;\x1B\x5C")
                             }
                             Err(_) => {
-                                print_error!("{}: unable to form url.", name);
+                                log::error!("{}: unable to form url", name);
                                 name
                             }
                         }
@@ -143,7 +142,7 @@ impl Name {
                     Err(err) => {
                         // Broken symlinks are expected, don't report as error
                         if err.kind() != std::io::ErrorKind::NotFound {
-                            print_error!("{}: {}", name, err);
+                            log::error!("{}: {}", name, err);
                         }
                         name
                     }

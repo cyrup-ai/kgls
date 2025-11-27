@@ -5,7 +5,6 @@ use super::Configurable;
 
 use crate::app::{self, Cli};
 use crate::config_file::Config;
-use crate::print_error;
 
 /// The flag showing which kind of time stamps to display.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
@@ -24,7 +23,7 @@ impl DateFlag {
         if app::validate_time_format(value).is_ok() {
             Some(Self::Formatted(value[1..].to_string()))
         } else {
-            print_error!("Not a valid date format: {}.", value);
+            log::error!("Not a valid date format: {}", value);
             None
         }
     }
@@ -38,7 +37,7 @@ impl DateFlag {
             "relative" => Some(Self::Relative),
             _ if value.starts_with('+') => Self::from_format_string(value),
             _ => {
-                print_error!("Not a valid date value: {}.", value);
+                log::error!("Not a valid date value: {}", value);
                 None
             }
         }
@@ -83,7 +82,7 @@ impl Configurable<Self> for DateFlag {
                 "iso" => Some(Self::Iso),
                 _ if value.starts_with('+') => Self::from_format_string(&value),
                 _ => {
-                    print_error!("Not a valid date value: {}.", value);
+                    log::error!("Not a valid date value: {}", value);
                     None
                 }
             }

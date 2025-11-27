@@ -1,14 +1,18 @@
 use clap::Parser;
-use kgls::{config_file::Config, core::Core, flags::Flags, print_error, Cli, ExitCode};
+use kgls::{config_file::Config, core::Core, flags::Flags, Cli, ExitCode};
 
 fn main() {
+    // Initialize logging infrastructure
+    env_logger::init();
+    
     let cli = Cli::parse_from(wild::args_os());
 
     let config = if cli.ignore_config {
         Config::with_none()
     } else if let Some(path) = &cli.config_file {
         Config::from_file(path).unwrap_or_else(|| {
-            print_error!("invalid config file path '{}'", path.display());
+            log::error!("Invalid config file path '{}'", path.display());
+            eprintln!("kgls: invalid config file path '{}'", path.display());
             std::process::exit(ExitCode::MajorIssue as i32);
         })
     } else {

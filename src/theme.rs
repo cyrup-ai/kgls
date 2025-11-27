@@ -11,7 +11,6 @@ use serde::{de::DeserializeOwned, Deserialize};
 use thiserror::Error;
 
 use crate::config_file;
-use crate::print_error;
 
 use color::ColorTheme;
 use git::GitThemeSymbols;
@@ -48,7 +47,7 @@ impl Theme {
         let real = if let Some(path) = config_file::expand_home(file) {
             path
         } else {
-            print_error!("Not a valid theme file path: {}.", &file);
+            log::error!("Not a valid theme file path: {}", &file);
             return Err(Error::InvalidPath(file.to_string()));
         };
 

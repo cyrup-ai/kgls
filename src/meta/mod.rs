@@ -33,7 +33,7 @@ pub use self::size::Size;
 pub use self::symlink::SymLink;
 
 use crate::flags::{Display, Flags, Layout, PermissionFlag};
-use crate::{print_error, ExitCode};
+use crate::ExitCode;
 
 use crate::git::GitCache;
 use std::collections::HashMap;
@@ -106,7 +106,7 @@ impl Meta {
                 let entry = match entry_result {
                     Ok(entry) => entry,
                     Err(err) => {
-                        print_error!("{}: {}.", self_path.display(), err);
+                        log::error!("{}: {}", self_path.display(), err);
                         return Some((0, Err(ExitCode::MinorIssue)));
                     }
                 };
@@ -216,7 +216,7 @@ impl Meta {
                 // This is not necessarily an error - it's expected when filtering rules
                 // filter parents but not their children
                 for child in orphaned_children {
-                    print_error!(
+                    log::error!(
                         "Warning: Entry '{}' orphaned (parent '{}' was filtered)",
                         child.path.display(),
                         parent_path.display()
@@ -339,7 +339,7 @@ impl Meta {
         let metadata = match path.symlink_metadata() {
             Ok(meta) => meta,
             Err(err) => {
-                print_error!("{}: {}.", path.display(), err);
+                log::error!("{}: {}", path.display(), err);
                 return 0;
             }
         };
@@ -353,7 +353,7 @@ impl Meta {
             let entries = match path.read_dir() {
                 Ok(entries) => entries,
                 Err(err) => {
-                    print_error!("{}: {}.", path.display(), err);
+                    log::error!("{}: {}", path.display(), err);
                     return size;
                 }
             };
@@ -520,7 +520,7 @@ fn process_entry(
     let mut entry_meta = match Meta::from_path(&path, flags.dereference.0, flags.permission) {
         Ok(meta) => meta,
         Err(err) => {
-            print_error!("{}: {}.", path.display(), err);
+            log::error!("{}: {}", path.display(), err);
             return Some(Err(ExitCode::MinorIssue));
         }
     };

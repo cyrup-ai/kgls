@@ -113,29 +113,6 @@ impl From<ExitCode> for i32 {
     }
 }
 
-/// Macro for printing errors to stderr without panicking on pipe errors
-#[macro_export]
-macro_rules! print_error {
-    ($($arg:tt)*) => {
-        {
-            use std::io::Write;
-
-            let stderr = std::io::stderr();
-
-            {
-                let mut handle = stderr.lock();
-                // We can write on stderr, so we simply ignore the error and don't print
-                // and stop with success.
-                let res = handle.write_all(std::format!("kgls: {}\n\n",
-                                                        std::format!($($arg)*)).as_bytes());
-                if res.is_err() {
-                    std::process::exit(0);
-                }
-            }
-        }
-    };
-}
-
 /// Macro for printing output to stdout without panicking on pipe errors
 #[macro_export]
 macro_rules! print_output {

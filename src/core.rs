@@ -6,7 +6,7 @@ use crate::flags::{
 use crate::icon::Icons;
 
 use crate::meta::Meta;
-use crate::{print_error, print_output, sort, ExitCode};
+use crate::{print_output, sort, ExitCode};
 use std::path::PathBuf;
 
 #[cfg(not(target_os = "windows"))]
@@ -130,6 +130,7 @@ impl Core {
             match result {
                 Ok(entry) => entries.push(entry),
                 Err(e) => {
+                    log::error!("Stream error: {}", e);
                     eprintln!("Stream error: {}", e);
                     exit_code.set_if_greater(ExitCode::MinorIssue);
                 }
@@ -189,8 +190,8 @@ impl Core {
                 }
 
                 // Entry has parent but wasn't attached - parent was filtered
-                print_error!(
-                    "Warning: Entry '{}' orphaned (parent '{}' was filtered)",
+                log::warn!(
+                    "Entry '{}' orphaned (parent '{}' was filtered)",
                     entry.path.display(),
                     parent_path.display()
                 );
@@ -237,6 +238,7 @@ impl Core {
             match result {
                 Ok(entry) => entries.push(entry),
                 Err(e) => {
+                    log::error!("Stream error: {}", e);
                     eprintln!("Stream error: {}", e);
                     exit_code.set_if_greater(ExitCode::MinorIssue);
                 }

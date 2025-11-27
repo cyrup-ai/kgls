@@ -112,13 +112,13 @@ impl GitCache {
                                         statuses.push((path, git_status));
                                     }
                                     Err(err) => {
-                                        crate::print_error!("Error processing status item: {}", err);
+                                        log::warn!("Error processing status item: {}", err);
                                     }
                                 }
                             }
                         }
                         Err(err) => {
-                            crate::print_error!(
+                            log::warn!(
                                 "Cannot create status iterator for directory {:?}: {}",
                                 workdir,
                                 err
@@ -127,7 +127,7 @@ impl GitCache {
                     }
                 }
                 Err(err) => {
-                    crate::print_error!(
+                    log::warn!(
                         "Cannot retrieve Git statuses for directory {:?}: {}",
                         workdir,
                         err
@@ -153,7 +153,7 @@ impl GitCache {
             Ok(filename) => Some(self.inner_get(&filename, is_directory)),
             Err(err) => {
                 if err.kind() != std::io::ErrorKind::NotFound {
-                    crate::print_error!("Cannot get git status for {:?}:  {}", filepath, err);
+                    log::warn!("Cannot get git status for {:?}:  {}", filepath, err);
                 }
                 None
             }

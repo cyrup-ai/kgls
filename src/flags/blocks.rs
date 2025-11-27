@@ -1,7 +1,6 @@
 use super::Configurable;
 use crate::app::Cli;
 use crate::config_file::Config;
-use crate::print_error;
 
 use std::convert::TryFrom;
 
@@ -171,7 +170,7 @@ impl Configurable<Self> for Blocks {
             for b in c.iter() {
                 match Block::try_from(b.as_str()) {
                     Ok(block) => blocks.push(block),
-                    Err(err) => print_error!("{}.", err),
+                    Err(err) => log::error!("{}", err),
                 }
             }
             if blocks.is_empty() {

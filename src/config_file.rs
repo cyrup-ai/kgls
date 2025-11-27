@@ -8,7 +8,6 @@ use crate::flags::size::SizeFlag;
 use crate::flags::sorting::{DirGrouping, SortColumn};
 use crate::flags::HyperlinkOption;
 use crate::flags::{ColorOption, ThemeOption};
-use crate::print_error;
 
 use std::path::{Path, PathBuf};
 
@@ -164,8 +163,8 @@ impl Config {
             Ok(f) => match Self::from_yaml(&String::from_utf8_lossy(&f)) {
                 Ok(c) => Some(c),
                 Err(e) => {
-                    print_error!(
-                        "Configuration file {} format error, {}.",
+                    log::error!(
+                        "Configuration file {} format error, {}",
                         file.to_string_lossy(),
                         e
                     );
@@ -174,8 +173,8 @@ impl Config {
             },
             Err(e) => {
                 if e.kind() != io::ErrorKind::NotFound {
-                    print_error!(
-                        "Can not open config file {}: {}.",
+                    log::error!(
+                        "Can not open config file {}: {}",
                         file.to_string_lossy(),
                         e
                     );
