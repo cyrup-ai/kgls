@@ -19,6 +19,9 @@ pub struct FileEntry {
     pub depth: usize,
     pub is_symlink: bool,
 
+    // Cached canonical path captured at discovery time to avoid TOCTOU races
+    pub canonical_path: Option<PathBuf>,
+
     // Lazy-loaded fields populated by transformers (planned for future optimization)
     pub git_status: Option<GitStatusInfo>,
     #[allow(dead_code)]
@@ -42,6 +45,10 @@ impl FileEntry {
         let depth = entry.depth() - base_depth;
         let is_symlink = metadata.file_type().is_symlink();
 
+        // Capture canonical path early to avoid TOCTOU races
+        // Silently handle failures (broken symlinks, permission denied, etc.)
+        let canonical_path = std::fs::canonicalize(&path).ok();
+
         Ok(FileEntry {
             path,
             name,
@@ -49,6 +56,7 @@ impl FileEntry {
             metadata,
             depth,
             is_symlink,
+            canonical_path,
             git_status: None,
             permissions: None,
             size: None,
@@ -109,6 +117,7 @@ impl FileEntry {
             inode: Some(INode::from(&self.metadata)),
             links: Some(Links::from(&self.metadata)),
             path: self.path.clone(),
+            canonical_path: self.canonical_path.clone(),
             symlink: SymLink::from(self.path.as_path()),
             size: Some(Size::from(&self.metadata)),
             date: Some(Date::from(&self.metadata)),
@@ -224,7 +233,15 @@ impl FileStream {
                                         // Convert to FileEntry
                                         match FileEntry::from_jwalk(entry, base_depth) {
                                             Ok(file_entry) => futures::future::ready(Some(Ok(file_entry))),
-                                            Err(e) => futures::future::ready(Some(Err(StreamError::Io(e)))),
+                                            Err(e) => {
+                                                // Silently skip files that disappear during traversal (TOCTOU race)
+                                                if e.kind() == std::io::ErrorKind::NotFound {
+                                                    log::debug!("File disappeared during traversal: {}", e);
+                                                    futures::future::ready(None)
+                                                } else {
+                                                    futures::future::ready(Some(Err(StreamError::Io(e))))
+                                                }
+                                            }
                                         }
                                     }
                                     Err(e) => futures::future::ready(Some(Err(StreamError::Traversal(e.to_string())))),

@@ -121,31 +121,40 @@ impl Name {
     }
 
     /// Wraps the name in terminal hyperlink escape sequences
-    fn hyperlink(&self, name: String, hyperlink: HyperlinkOption) -> String {
+    fn hyperlink(&self, name: String, hyperlink: HyperlinkOption, cached_canonical: Option<&PathBuf>) -> String {
         match hyperlink {
             HyperlinkOption::Always => {
                 // HyperlinkOption::Auto gets converted to None or Always in core.rs based on tty_available
-                match std::fs::canonicalize(&self.path) {
-                    Ok(canonical_path) => {
-                        match Url::from_file_path(canonical_path) {
-                            Ok(url) => {
-                                // OSC 8 hyperlink format
-                                // https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
-                                format!("\x1B]8;;{url}\x1B\x5C{name}\x1B]8;;\x1B\x5C")
+                // Use cached canonical path if available to avoid TOCTOU races
+                let canonical_path = if let Some(cached) = cached_canonical {
+                    Some(cached.clone())
+                } else {
+                    match std::fs::canonicalize(&self.path) {
+                        Ok(path) => Some(path),
+                        Err(err) => {
+                            // NotFound is expected for TOCTOU races and broken symlinks - silently skip
+                            if err.kind() != std::io::ErrorKind::NotFound {
+                                log::debug!("{}: {}", name, err);
                             }
-                            Err(_) => {
-                                log::error!("{}: unable to form url", name);
-                                name
-                            }
+                            None
                         }
                     }
-                    Err(err) => {
-                        // Broken symlinks are expected, don't report as error
-                        if err.kind() != std::io::ErrorKind::NotFound {
-                            log::error!("{}: {}", name, err);
+                };
+
+                if let Some(canonical) = canonical_path {
+                    match Url::from_file_path(canonical) {
+                        Ok(url) => {
+                            // OSC 8 hyperlink format
+                            // https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
+                            format!("\x1B]8;;{url}\x1B\x5C{name}\x1B]8;;\x1B\x5C")
                         }
-                        name
+                        Err(_) => {
+                            log::debug!("{}: unable to form url", name);
+                            name
+                        }
                     }
+                } else {
+                    name
                 }
             }
             _ => name,
@@ -161,6 +170,7 @@ impl Name {
         hyperlink: HyperlinkOption,
         literal: bool,
         git_status: Option<&GitFileStatus>,
+        cached_canonical: Option<&PathBuf>,
     ) -> ColoredString {
         let icon = icons.get(self);
 
@@ -171,7 +181,7 @@ impl Name {
             }
         };
 
-        let hyperlinked_name = self.hyperlink(display_name, hyperlink);
+        let hyperlinked_name = self.hyperlink(display_name, hyperlink, cached_canonical);
         
         // Use the new render decision system
         let decision = colors.render_decision(

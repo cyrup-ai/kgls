@@ -51,6 +51,7 @@ use self::windows_attributes::get_attributes;
 pub struct Meta {
     pub name: Name,
     pub path: PathBuf,
+    pub canonical_path: Option<PathBuf>,
     pub permissions_or_attributes: Option<PermissionsOrAttributes>,
     pub date: Option<Date>,
     pub owner: Option<Owner>,
@@ -296,14 +297,14 @@ impl Meta {
         // Create "." entry
         let mut current_meta = self.clone();
         ".".clone_into(&mut current_meta.name.name);
-        current_meta.git_status = cache.and_then(|c| c.get(&current_meta.path, true));
+        current_meta.git_status = cache.and_then(|c| c.get(&current_meta.path, current_meta.canonical_path.as_ref(), true));
         entries.push(current_meta);
 
         // Create ".." entry
         let parent_path = self.path.join(Component::ParentDir);
         let mut parent_meta = Self::from_path(&parent_path, flags.dereference.0, flags.permission)?;
         "..".clone_into(&mut parent_meta.name.name);
-        parent_meta.git_status = cache.and_then(|c| c.get(&parent_meta.path, true));
+        parent_meta.git_status = cache.and_then(|c| c.get(&parent_meta.path, parent_meta.canonical_path.as_ref(), true));
         entries.push(parent_meta);
 
         Ok(entries)
@@ -442,11 +443,15 @@ impl Meta {
 
         let name = Name::new(path, file_type);
 
+        // Capture canonical path early to avoid TOCTOU races
+        let canonical_path = std::fs::canonicalize(path).ok();
+
         if broken_link {
             Ok(Self {
                 inode: None,
                 links: None,
                 path: path.to_path_buf(),
+                canonical_path: None,
                 symlink: SymLink::from(path),
                 size: None,
                 date: None,
@@ -464,6 +469,7 @@ impl Meta {
                 inode: Some(INode::from(&metadata)),
                 links: Some(Links::from(&metadata)),
                 path: path.to_path_buf(),
+                canonical_path,
                 symlink: SymLink::from(path),
                 size: Some(Size::from(&metadata)),
                 date: Some(Date::from(&metadata)),
@@ -535,7 +541,7 @@ fn process_entry(
 
     // Set git status
     let is_directory = matches!(entry_meta.file_type, FileType::Directory { .. });
-    entry_meta.git_status = cache.and_then(|c| c.get(&entry_meta.path, is_directory));
+    entry_meta.git_status = cache.and_then(|c| c.get(&entry_meta.path, entry_meta.canonical_path.as_ref(), is_directory));
 
     Some(Ok(entry_meta))
 }

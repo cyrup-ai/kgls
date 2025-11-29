@@ -148,16 +148,26 @@ impl GitCache {
         }
     }
 
-    pub fn get(&self, filepath: &PathBuf, is_directory: bool) -> Option<GitFileStatus> {
-        match std::fs::canonicalize(filepath) {
-            Ok(filename) => Some(self.inner_get(&filename, is_directory)),
-            Err(err) => {
-                if err.kind() != std::io::ErrorKind::NotFound {
-                    log::warn!("Cannot get git status for {:?}:  {}", filepath, err);
+    pub fn get(&self, filepath: &PathBuf, cached_canonical: Option<&PathBuf>, is_directory: bool) -> Option<GitFileStatus> {
+        // Use cached canonical path if available to avoid TOCTOU races
+        let filename = if let Some(canonical) = cached_canonical {
+            canonical.clone()
+        } else {
+            match std::fs::canonicalize(filepath) {
+                Ok(canonical) => canonical,
+                Err(err) => {
+                    // NotFound is expected for TOCTOU races - silently skip at debug level
+                    if err.kind() == std::io::ErrorKind::NotFound {
+                        log::debug!("File disappeared when getting git status for {:?}: {}", filepath, err);
+                    } else {
+                        log::debug!("Cannot get git status for {:?}: {}", filepath, err);
+                    }
+                    return None;
                 }
-                None
             }
-        }
+        };
+        
+        Some(self.inner_get(&filename, is_directory))
     }
 
     fn inner_get(&self, filepath: &PathBuf, is_directory: bool) -> GitFileStatus {

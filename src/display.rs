@@ -410,6 +410,7 @@ fn get_output(
                         flags.hyperlink,
                         flags.literal.0,
                         meta.git_status.as_ref(),
+                        meta.canonical_path.as_ref(),
                     ),
                     meta.indicator.render(flags),
                 ]);
