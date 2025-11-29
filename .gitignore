@@ -24,14 +24,21 @@ Pipfile.lock
 ./goose/*
 ./.crates-lsp/*
 **/.crates-lsp/*
-**/.claude/*
+task/*
+.crates-lsp/*
+*.code-workspace
 
 # ==============================
 # Rust Specific
 # ==============================
+Cargo.lock
 target/       # Only ignore the target directory at the crate root
 **/target/    # Ignore target directories in any subdirectory
-*.rs.bk      # Backup files for Rust sources at the crate root
+# Backup files for Rust sources at the crate root
+*.rs.bk
+*.rs.bak
+*_backup.rs
+*_original*.rs
 db.surreal
 **/db.surreal/
 
@@ -150,7 +157,6 @@ vendors/
 # Build and Output
 # ==============================
 dist/
-build/
 coverage/
 doc/
 
@@ -167,7 +173,6 @@ doc/
 **/bin/
 **/.target/
 **/dist/
-**/build/
 **/out/
 !.gitkeep
 
@@ -179,8 +184,8 @@ doc/
 .lapce/
 .qodo
 .koolaid
-**/.claude/
 **/CLAUDE.md
+**/TODO.md
 
 # Ignore any file or directory containing .history (recursively)
 **/.history/
@@ -230,8 +235,6 @@ logs
 .node_repl_history
 # dotenv environment variables
 .env.*.local
-# Parcel cache
-.cache/
 # Next.js build output
 .next/
 # Nuxt.js build / generate output
@@ -266,9 +269,8 @@ out/
 fork
 /target
 /debug/
-release/
 
-# ============== <cyrup> ===============
+# ============== <kodegen> ===============
 # ------  ## MIRRORMARK PROTOCOL   -----
 !.mdmirror
 # ----------  ## OZ PROTOCOL   ---------
@@ -280,13 +282,11 @@ chrome_data*/
 # Temporary and Cache directories
 .tmp*/
 .tmpX*/
-Cache*/
-**/Cache/
-**/Cache_Data/
 
 # ==============================
 # Rust build output
 # ==============================
 **/target/
 
-# ============== </cyrup> ==============
+# ============== </kodegen> ==============
+.claude
