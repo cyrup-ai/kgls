@@ -17,6 +17,51 @@ pub enum DisplayOption<'a> {
     Relative { base_path: &'a Path },
 }
 
+/// Builder for Name::render() to avoid too many arguments
+pub struct RenderBuilder<'a> {
+    colors: &'a Colors,
+    icons: &'a Icons,
+    display_option: &'a DisplayOption<'a>,
+    hyperlink: HyperlinkOption,
+    literal: bool,
+    git_status: Option<&'a GitFileStatus>,
+    cached_canonical: Option<&'a PathBuf>,
+}
+
+impl<'a> RenderBuilder<'a> {
+    pub fn new(colors: &'a Colors, icons: &'a Icons, display_option: &'a DisplayOption<'a>) -> Self {
+        Self {
+            colors,
+            icons,
+            display_option,
+            hyperlink: HyperlinkOption::Never,
+            literal: false,
+            git_status: None,
+            cached_canonical: None,
+        }
+    }
+
+    pub fn hyperlink(mut self, hyperlink: HyperlinkOption) -> Self {
+        self.hyperlink = hyperlink;
+        self
+    }
+
+    pub fn literal(mut self, literal: bool) -> Self {
+        self.literal = literal;
+        self
+    }
+
+    pub fn git_status(mut self, git_status: Option<&'a GitFileStatus>) -> Self {
+        self.git_status = git_status;
+        self
+    }
+
+    pub fn cached_canonical(mut self, cached_canonical: Option<&'a PathBuf>) -> Self {
+        self.cached_canonical = cached_canonical;
+        self
+    }
+}
+
 /// Represents a file or directory name with associated metadata
 #[derive(Clone, Debug, Eq)]
 pub struct Name {
@@ -161,17 +206,25 @@ impl Name {
         }
     }
 
+    /// Start building a render call with required parameters
+    pub fn builder<'a>(
+        colors: &'a Colors,
+        icons: &'a Icons,
+        display_option: &'a DisplayOption<'a>,
+    ) -> RenderBuilder<'a> {
+        RenderBuilder::new(colors, icons, display_option)
+    }
+
     /// Renders the name with colors, icons, and formatting
-    pub fn render(
-        &self,
-        colors: &Colors,
-        icons: &Icons,
-        display_option: &DisplayOption,
-        hyperlink: HyperlinkOption,
-        literal: bool,
-        git_status: Option<&GitFileStatus>,
-        cached_canonical: Option<&PathBuf>,
-    ) -> ColoredString {
+    pub fn render(&self, builder: RenderBuilder) -> ColoredString {
+        // Extract fields from builder
+        let colors = builder.colors;
+        let icons = builder.icons;
+        let display_option = builder.display_option;
+        let hyperlink = builder.hyperlink;
+        let literal = builder.literal;
+        let git_status = builder.git_status;
+        let cached_canonical = builder.cached_canonical;
         let icon = icons.get(self);
 
         let display_name = match display_option {

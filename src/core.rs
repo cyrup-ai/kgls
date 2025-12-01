@@ -24,6 +24,8 @@ pub struct Core {
     colors: Colors,
     git_theme: GitTheme,
     sorters: Vec<(SortOrder, sort::SortFn)>,
+    stdout_writer: Option<Box<dyn std::io::Write + Send>>,
+    stderr_writer: Option<Box<dyn std::io::Write + Send>>,
 }
 
 impl Core {
@@ -85,10 +87,57 @@ impl Core {
             icons: Icons::new(tty_available, icon_when, icon_theme, icon_separator),
             git_theme: GitTheme::new(),
             sorters,
+            stdout_writer: None,
+            stderr_writer: None,
         }
     }
 
-    pub async fn run(self, paths: Vec<PathBuf>) -> ExitCode {
+    /// Configure custom output writers for library usage.
+    /// 
+    /// This allows integration with systems that redirect stdout/stderr
+    /// (e.g., shell builtins, testing frameworks, logging systems).
+    ///
+    /// # Example
+    /// ```no_run
+    /// use kgls::Core;
+    /// use std::io::Cursor;
+    ///
+    /// let mut stdout_buf = Cursor::new(Vec::new());
+    /// let mut stderr_buf = Cursor::new(Vec::new());
+    /// 
+    /// let core = Core::new(flags)
+    ///     .with_writers(stdout_buf, stderr_buf);
+    /// ```
+    pub fn with_writers(
+        mut self,
+        stdout: impl std::io::Write + Send + 'static,
+        stderr: impl std::io::Write + Send + 'static,
+    ) -> Self {
+        self.stdout_writer = Some(Box::new(stdout));
+        self.stderr_writer = Some(Box::new(stderr));
+        self
+    }
+
+    pub async fn run(mut self, paths: Vec<PathBuf>) -> ExitCode {
+        // Validate paths exist before processing
+        let mut exit_code = ExitCode::OK;
+        let mut valid_paths = Vec::new();
+        
+        for path in &paths {
+            if !path.exists() {
+                log::error!("Cannot access '{}': No such file or directory", path.display());
+                self.write_error(format!("kgls: cannot access '{}': No such file or directory", path.display()));
+                exit_code.set_if_greater(ExitCode::MinorIssue);
+            } else {
+                valid_paths.push(path.clone());
+            }
+        }
+        
+        // If no valid paths, return early
+        if valid_paths.is_empty() {
+            return exit_code;
+        }
+        
         // Determine traversal depth based on flags (copied from fetch() logic)
         let depth = match self.flags.layout {
             Layout::Tree => self.flags.recursion.depth,
@@ -98,23 +147,27 @@ impl Core {
 
         // Build streaming pipeline
         let file_stream = crate::stream::FileStream::new(
-            paths.clone(),
+            valid_paths.clone(),
             depth,
             &self.flags.ignore_globs,
             self.flags.display,
         );
 
         // Route to appropriate output mode
-        if self.flags.layout == Layout::Tree {
-            self.display_tree_stream(file_stream, &paths).await
+        let stream_exit_code = if self.flags.layout == Layout::Tree {
+            self.display_tree_stream(file_stream, &valid_paths).await
         } else {
             // Grid/OneLine modes: buffer temporarily (can optimize with GridAccumulator later)
             self.display_buffered(file_stream).await
-        }
+        };
+        
+        // Combine exit codes (take the greater error level)
+        exit_code.set_if_greater(stream_exit_code);
+        exit_code
     }
 
     async fn display_tree_stream(
-        &self,
+        &mut self,
         file_stream: crate::stream::FileStream,
         _paths: &[PathBuf],
     ) -> ExitCode {
@@ -131,7 +184,7 @@ impl Core {
                 Ok(entry) => entries.push(entry),
                 Err(e) => {
                     log::error!("Stream error: {}", e);
-                    eprintln!("Stream error: {}", e);
+                    self.write_error(format!("Stream error: {}", e));
                     exit_code.set_if_greater(ExitCode::MinorIssue);
                 }
             }
@@ -219,12 +272,12 @@ impl Core {
             &self.git_theme,
         );
 
-        print_output!("{}", output);
+        self.write_output(output);
         exit_code
     }
 
     async fn display_buffered(
-        &self,
+        &mut self,
         file_stream: crate::stream::FileStream,
     ) -> ExitCode {
         use futures::StreamExt;
@@ -239,7 +292,7 @@ impl Core {
                 Ok(entry) => entries.push(entry),
                 Err(e) => {
                     log::error!("Stream error: {}", e);
-                    eprintln!("Stream error: {}", e);
+                    self.write_error(format!("Stream error: {}", e));
                     exit_code.set_if_greater(ExitCode::MinorIssue);
                 }
             }
@@ -263,7 +316,7 @@ impl Core {
             &self.git_theme,
         );
 
-        print_output!("{}", output);
+        self.write_output(output);
         exit_code
     }
 
@@ -279,7 +332,30 @@ impl Core {
         }
     }
 
+    /// Write output to custom stdout writer if provided, otherwise use stdout
+    fn write_output(&mut self, content: impl std::fmt::Display) {
+        use std::io::Write;
+        
+        if let Some(writer) = &mut self.stdout_writer {
+            // Custom writer provided - write and flush
+            let _ = write!(writer, "{}", content);
+            let _ = writer.flush();
+        } else {
+            // No custom writer - use print_output! macro for binary mode
+            print_output!("{}", content);
+        }
+    }
 
-
-
+    /// Write error to custom stderr writer if provided, otherwise use stderr
+    fn write_error(&mut self, content: impl std::fmt::Display) {
+        use std::io::Write;
+        
+        if let Some(writer) = &mut self.stderr_writer {
+            // Custom writer provided
+            let _ = writeln!(writer, "{}", content);
+        } else {
+            // No custom writer - use eprintln! for binary mode
+            eprintln!("{}", content);
+        }
+    }
 }

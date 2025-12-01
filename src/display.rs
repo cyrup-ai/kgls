@@ -4,7 +4,7 @@ use crate::flags::{Display, Flags, HyperlinkOption, Layout};
 use crate::git_theme::GitTheme;
 use crate::icon::Icons;
 use crate::meta::name::DisplayOption;
-use crate::meta::{FileType, Meta, OwnerCache};
+use crate::meta::{FileType, Meta, Name, OwnerCache};
 use std::collections::HashMap;
 use term_grid::{Alignment, Cell, Direction, Filling, Grid, GridOptions};
 use terminal_size::terminal_size;
@@ -404,13 +404,11 @@ fn get_output(
             Block::Name => {
                 block_vec.extend([
                     meta.name.render(
-                        colors,
-                        icons,
-                        display_option,
-                        flags.hyperlink,
-                        flags.literal.0,
-                        meta.git_status.as_ref(),
-                        meta.canonical_path.as_ref(),
+                        Name::builder(colors, icons, display_option)
+                            .hyperlink(flags.hyperlink)
+                            .literal(flags.literal.0)
+                            .git_status(meta.git_status.as_ref())
+                            .cached_canonical(meta.canonical_path.as_ref())
                     ),
                     meta.indicator.render(flags),
                 ]);
