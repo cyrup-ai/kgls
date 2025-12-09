@@ -39,6 +39,7 @@ impl AccessControl {
         Self::from_data(has_acl, &selinux_context, &smack_context)
     }
 
+    #[cfg(unix)]
     fn from_data(has_acl: bool, selinux_context: &[u8], smack_context: &[u8]) -> Self {
         Self {
             has_acl,

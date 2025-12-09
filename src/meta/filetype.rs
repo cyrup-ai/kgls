@@ -22,9 +22,12 @@ impl FileType {
     pub fn new(
         meta: &Metadata,
         symlink_meta: Option<&Metadata>,
-        permissions: &crate::meta::Permissions,
+        _path: &std::path::Path,
     ) -> Self {
         use std::os::unix::fs::FileTypeExt;
+
+        // Derive permissions from metadata for platform-agnostic API
+        let permissions = crate::meta::Permissions::from(meta);
 
         let file_type = meta.file_type();
 

@@ -14,9 +14,9 @@ mod size;
 mod symlink;
 
 #[cfg(windows)]
-mod windows_attributes;
+pub mod windows_attributes;
 #[cfg(windows)]
-mod windows_utils;
+pub mod windows_utils;
 
 pub use self::access_control::AccessControl;
 pub use self::date::Date;
@@ -431,14 +431,6 @@ impl Meta {
             },
         };
 
-        #[cfg(not(windows))]
-        let file_type = FileType::new(
-            &metadata,
-            symlink_meta.as_ref(),
-            &permissions.unwrap_or_default(),
-        );
-
-        #[cfg(windows)]
         let file_type = FileType::new(&metadata, symlink_meta.as_ref(), path);
 
         let name = Name::new(path, file_type);

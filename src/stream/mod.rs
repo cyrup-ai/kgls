@@ -7,7 +7,7 @@ use std::task::{Context, Poll};
 mod tree_accumulator;
 
 use crate::git::GitStatusInfo;
-use crate::meta::{FileType, Permissions};
+use crate::meta::FileType;
 
 /// A file system entry discovered during traversal
 #[derive(Debug, Clone)]
@@ -40,8 +40,7 @@ impl FileEntry {
         let path = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
         let metadata = entry.metadata()?;
-        let permissions = Permissions::from(&metadata);
-        let file_type = FileType::new(&metadata, None, &permissions);
+        let file_type = FileType::new(&metadata, None, &path);
         let depth = entry.depth() - base_depth;
         let is_symlink = metadata.file_type().is_symlink();
 
@@ -83,7 +82,7 @@ impl FileEntry {
         let (owner, permissions_or_attributes) = match permission_flag {
             crate::flags::PermissionFlag::Disable => (None, None),
             crate::flags::PermissionFlag::Attributes => {
-                use crate::meta::permissions_or_attributes::get_attributes;
+                use crate::meta::windows_attributes::get_attributes;
                 (
                     None,
                     Some(crate::meta::permissions_or_attributes::PermissionsOrAttributes::WindowsAttributes(get_attributes(

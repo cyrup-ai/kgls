@@ -4,8 +4,7 @@ use std::mem::MaybeUninit;
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
 use std::path::Path;
 
-use windows::Win32::Foundation::PSID;
-use windows::Win32::Security::{self, Authorization::TRUSTEE_W, ACL};
+use windows::Win32::Security::{self, Authorization::TRUSTEE_W, ACL, PSID};
 
 use super::{Owner, Permissions};
 
@@ -142,8 +141,8 @@ pub fn get_file_data(path: &Path) -> Result<(Owner, Permissions), io::Error> {
     let result = unsafe {
         Security::CreateWellKnownSid(
             Security::WinWorldSid,
-            PSID::default(),
-            world_sid_ptr,
+            Some(PSID::default()),
+            Some(world_sid_ptr),
             &mut world_sid_len,
         )
     };
@@ -152,7 +151,7 @@ pub fn get_file_data(path: &Path) -> Result<(Owner, Permissions), io::Error> {
         // Failed to create the SID
         // Assumptions: Same as the other identical calls
         unsafe {
-            windows::Win32::System::Memory::LocalFree(sd_ptr.0 as _);
+            let _ = windows::Win32::Foundation::LocalFree(Some(windows::Win32::Foundation::HLOCAL(sd_ptr.0)));
         }
 
         // Assumptions: None (GetLastError shouldn't ever fail)
@@ -179,9 +178,9 @@ pub fn get_file_data(path: &Path) -> Result<(Owner, Permissions), io::Error> {
 
     let permissions = {
         use windows::Win32::Storage::FileSystem::{
-            FILE_ACCESS_FLAGS, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
+            FILE_ACCESS_RIGHTS, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
         };
-        let has_bit = |field: u32, bit: FILE_ACCESS_FLAGS| field & bit.0 != 0;
+        let has_bit = |field: u32, bit: FILE_ACCESS_RIGHTS| field & bit.0 != 0;
         Permissions {
             user_read: has_bit(owner_access_mask, FILE_GENERIC_READ),
             user_write: has_bit(owner_access_mask, FILE_GENERIC_WRITE),
@@ -208,7 +207,7 @@ pub fn get_file_data(path: &Path) -> Result<(Owner, Permissions), io::Error> {
     //   options. It's not much memory, so leaking it on failure is
     //   *probably* fine)
     unsafe {
-        windows::Win32::System::Memory::LocalFree(sd_ptr.0 as _);
+        let _ = windows::Win32::Foundation::LocalFree(Some(windows::Win32::Foundation::HLOCAL(sd_ptr.0)));
     }
 
     Ok((owner, permissions))
@@ -229,8 +228,9 @@ unsafe fn get_acl_access_mask(
     // Assumptions:
     // - All function assumptions
     // - Result is not valid until return value is checked
-    let err_code =
-        Security::Authorization::GetEffectiveRightsFromAclW(acl_ptr, trustee_ptr, &mut access_mask);
+    let err_code = unsafe {
+        Security::Authorization::GetEffectiveRightsFromAclW(acl_ptr, trustee_ptr, &mut access_mask)
+    };
 
     if err_code.is_ok() {
         Ok(access_mask)
@@ -250,7 +250,9 @@ unsafe fn get_acl_access_mask(
 unsafe fn trustee_from_sid<P: Into<PSID>>(sid_ptr: P) -> TRUSTEE_W {
     let mut trustee = TRUSTEE_W::default();
 
-    Security::Authorization::BuildTrusteeWithSidW(&mut trustee, sid_ptr);
+    unsafe {
+        Security::Authorization::BuildTrusteeWithSidW(&mut trustee, Some(sid_ptr.into()));
+    }
 
     trustee
 }
@@ -271,13 +273,13 @@ fn resolve_foreign_sid_permissions(
         
         if LookupAccountSidW(
             None,
-            sid,
-            Some(name_buffer.as_mut_ptr()),
+            PSID(sid as *const _ as *mut _),
+            Some(windows::core::PWSTR(name_buffer.as_mut_ptr())),
             &mut name_size,
-            Some(domain_buffer.as_mut_ptr()),
+            Some(windows::core::PWSTR(domain_buffer.as_mut_ptr())),
             &mut domain_size,
             &mut sid_use,
-        ).as_bool() {
+        ).is_ok() {
             let name = String::from_utf16_lossy(&name_buffer[..name_size as usize]);
             let domain = String::from_utf16_lossy(&domain_buffer[..domain_size as usize]);
             Ok(format!("{}\\{}", domain, name))
@@ -315,15 +317,17 @@ unsafe fn lookup_account_sid(sid: PSID) -> Result<(Vec<u16>, Vec<u16>), std::io:
         // Assumptions:
         // - sid is a valid pointer to a SID data structure
         // - name_size and domain_size accurately reflect the sizes
-        let result = Security::LookupAccountSidW(
-            None,
-            sid,
-            windows::core::PWSTR(name.as_mut_ptr()),
-            &mut name_size,
-            windows::core::PWSTR(domain.as_mut_ptr()),
-            &mut domain_size,
-            sid_name_use.as_mut_ptr(),
-        );
+        let result = unsafe {
+            Security::LookupAccountSidW(
+                None,
+                sid,
+                Some(windows::core::PWSTR(name.as_mut_ptr())),
+                &mut name_size,
+                Some(windows::core::PWSTR(domain.as_mut_ptr())),
+                &mut domain_size,
+                sid_name_use.as_mut_ptr(),
+            )
+        };
 
         if result.is_ok() {
             // Success!
@@ -365,7 +369,7 @@ unsafe fn lookup_account_sid(sid: PSID) -> Result<(Vec<u16>, Vec<u16>), std::io:
                 Err(_) => {
                     // If foreign SID resolution fails, return original error
                     return Err(io::Error::from_raw_os_error(
-                        windows::Win32::Foundation::GetLastError().0 as i32,
+                        unsafe { windows::Win32::Foundation::GetLastError().0 } as i32,
                     ));
                 }
             }
